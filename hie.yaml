@@ -1,0 +1,8 @@
+cradle:
+  stack:
+    - path: "./app/free-numerical.hs"
+      component: "free-numerical:exe:free-numerical"
+    - path: "./src"
+      component: "free-numerical:lib"
+    - path: "./test/free-numerical.hs"
+      component: "free-numerical:test:free-numerical"
