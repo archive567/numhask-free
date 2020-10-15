@@ -366,7 +366,7 @@ instance (Show a, Ord a, Commutative a) => FreeAlgebra (Tree NoLaws) (Tree Commu
   printf (Leaf a) = show a
   printf (Branch a b) = "(" <> printf a <> "⊕" <> printf b <> ")"
 
--- | 
+-- |
 --
 -- > inv a ⊕ (a ⊕ b) == b -- left cancellation
 -- > (a ⊕ b) ⊕ inv b == a -- right cancellation
@@ -755,7 +755,8 @@ data FreeRing laws a
 -- | Parse an Exp, forget to the 'FreeRing' structure and print.
 --
 -- >>> let t1 = "(4*(1+3)+(3+1)+6*(4+5*(11+6)*(3+2)))+(7+3+11*2)"
--- "(1+3+3+7+(4*(1+3))+(6*(4+(5*(6+11)*(2+3))))+(11*2))"
+-- >>> putStrLn $ freeExp t1
+-- (1+3+3+7+(4*(1+3))+(6*(4+(5*(6+11)*(2+3))))+(11*2))
 freeExp :: Text -> Text
 freeExp t = printf (forget (parseExp t) :: FreeRing RingLaws Int)
 
@@ -869,9 +870,9 @@ instance (Eq a, Ord a, Subtractive a, Multiplicative a) => Multiplicative (FreeR
     | otherwise = FreeR (bagV vl <| bagV vr <| Empty)
   -- multiplicative unital
   (*) (FreeV v) (FreeR bs) =
-    FreeR $ bool (bagV v <|) id (v == one) $ bs
+    FreeR $ bool (bagV v <|) id (v == one) bs
   (*) (FreeR bs) (FreeV v) =
-    FreeR $ bool (|> bagV v) id (v == one) $ bs
+    FreeR $ bool (|> bagV v) id (v == one) bs
   (*) (FreeR as) (FreeR bs) = FreeR $ as <> bs
 
 instance forall (a :: Type). (Ord a, Ring a) => Additive (FreeRing RingLaws a) where
@@ -911,7 +912,7 @@ instance forall (a :: Type). (Ord a, Ring a) => Additive (FreeRing RingLaws a) w
     | al == bl = FreeR (Seq.singleton al) * (FreeR (as' :|> ar) + FreeR (bs' :|> br))
     | ar == br = (FreeR (al :<| as') + FreeR (bl :<| bs')) * FreeR (Seq.singleton ar)
     | otherwise =
-      (FreeR $ Seq.singleton $ bagR f + bagR f')
+      FreeR $ Seq.singleton $ bagR f + bagR f'
   (+) a b = FreeR $ Seq.singleton $ bagR a + bagR b
 
 instance (Show a, Ord a, Ring a) => Subtractive (FreeRing RingLaws a) where
@@ -919,7 +920,7 @@ instance (Show a, Ord a, Ring a) => Subtractive (FreeRing RingLaws a) where
   negate (FreeR Empty) = FreeR Empty
   -- no multiply, negate everything in the bag
   negate (FreeR ((Bag m) :<| xs)) =
-    FreeR $ (Seq.singleton $ (Bag $ Map.map negate m)) <> xs
+    FreeR $ Seq.singleton (Bag $ Map.map negate m) <> xs
 
 instance (Show a, Eq a, Ord a, Ring a) => FreeAlgebra Exp (FreeRing RingLaws) a where
   forget (Value a) = lift a
