@@ -1,8 +1,8 @@
 cabal-version: 2.4
 name:          numhask-free
 version:       0.0.1
-synopsis: See readme.md
-description: See readme.md for description.
+synopsis: Numerical free algebras
+description: Derivation of forgetful morphisms, free objects and algebras for common numerical objects. 
 category: project
 author: Tony Day
 maintainer: tonyday567@gmail.com
