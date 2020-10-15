@@ -9,5 +9,5 @@ import Test.DocTest
 main :: IO ()
 main =
   doctest
-  [ "src/NumHask/Free.hs"
+  [ "src/NumHask/FreeAlgebra.hs"
   ]

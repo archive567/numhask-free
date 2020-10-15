@@ -12,59 +12,64 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# OPTIONS_GHC -Wall #-}
-{-# OPTIONS_GHC -fno-warn-incomplete-uni-patterns #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 
--- | What is a Free Algebra?
+-- |
 --
--- An algebra is a collection of operations which combine values to produce other
--- values. Algebra is a posh way of saying "construction kit". The type of values
--- an algebra combines and produces is called the carrier of the algebra. The
--- collection of operations and specification of their arities is called the
--- signature of the algebra. ~ pigworker [reddit comment](https://www.reddit.com/r/haskell/comments/36y9jc/haskell_as_an_mvc_framework/)
+-- == What is a Free Algebra?
 --
--- Adding a law to an algebra can be thought of as partitioning the carrier of
--- the algebra into equivalence classes induced by that law, and regarding each
--- class as one element. ~ [The Boom Heirarchy](http://citeseerx.ist.psu.edu/viewdoc/download;jsessionid=601FB55680BBC2C1A14D136657E4A7ED?doi=10.1.1.49.3252&rep=rep1&type=pdf)
+-- /An algebra is a collection of operations which combine values to produce other values. Algebra is a posh way of saying "construction kit". The type of values an algebra combines and produces is called the carrier of the algebra. The collection of operations and specification of their arities is called the signature of the algebra./ ~ [pigworker reddit comment](https://www.reddit.com/r/haskell/comments/36y9jc/haskell_as_an_mvc_framework/)
 --
--- -- Free object definition
+-- A free algebra then, can be a set of instructions for creating a free object from some initial structure or expression. 'FreeAlgebra' can be thought of as busting up a computation into two parts:
 --
--- Less well known is the dual to this statement: that the best way to avoid the violation of a ... is to make it unrepresentable.
+-- - 'forget': a function that transforms a structure into a Free Object representing an ideal given the (abstract) laws of the algebra being defined, and
 --
--- - a Free Field is a bag o' bags
+-- - 'algebra': a (concrete) algebra from the Free Object to the carrier type (the type being produced).
 --
--- Adherence to the moral implications of a law, the haskell culture would shift from author reponsibility for ensuring laws are adhered to, to making laws explicit by their inclusion in smart constructors (algebras) of free objects. In this way, the violation of laws becoming unrepresentable.
-
-{- Note that we are not cleanly following wikipedia:
-
-A free algebra is the noncommutative analogue of a polynomial ring since its elements may be described as "polynomials" with non-commuting variables." ~ <https://en.wikipedia.org/wiki/Free_algebra>
-
-(For the more general free algebras in universal algebra, see free object.)
-
-Informally, a free object over a set A can be thought of as being a "generic" algebraic structure over A: the only equations that hold between elements of the free object are those that follow from the defining axioms of the algebraic structure. ~ <https://en.wikipedia.org/wiki/Free_object>
-
-A free object over a set forgets everything about that set except some universal properties, specified by the word following free. For example, the free monoid over Integers forgets unique factorization, unique representation in every base, the GCD function, and everything else about the Integers except: they are a set of objects, there is an associative (binary) operation on Integers, and there is a "neutral" Integer; precisely the universal properties of monoids. ~ <https://www.schoolofhaskell.com/user/bss/magma-tree>
-
-this functor “forgets” the monoidal structure — once we are inside a plain set, we no longer distinguish the unit element or care about multiplication — it’s called a forgetful functor. Forgetful functors come up regularly in category theory. ~ https://bartoszmilewski.com/2015/07/21/free-monoids/
-
-TODO:
-
-https://hackage.haskell.org/package/free-algebras-0.1.0.0/docs/Data-Algebra-Free.html
-
-TODO:
-
-free object is defined as being the left-hand side of an adjunction.
-
-https://stackoverflow.com/questions/40704181/how-are-free-objects-constructed
-
-
--}
-
-module NumHask.Free
-  ( -- * a free algebra
+--
+-- === The free object
+--
+-- /A free object over a set forgets everything about that set except some universal properties, specified by the word following free. For example, the free monoid over Integers forgets unique factorization, unique representation in every base, the GCD function, and everything else about the Integers except: they are a set of objects, there is an associative (binary) operation on Integers, and there is a "neutral" Integer; precisely the universal properties of monoids./ ~ <https://www.schoolofhaskell.com/user/bss/magma-tree>
+--
+-- /... informally, a free object over a set A can be thought of as being a "generic" algebraic structure over A: the only equations that hold between elements of the free object are those that follow from the defining axioms of the algebraic structure./ ~ <https://en.wikipedia.org/wiki/Free_object>
+--
+-- Explanations that lists are free monoids are abundant, as is research and development of free monadic combinators. Beyond this, concrete examples of free objects are rare out in the wild.
+--
+-- === Forgetting is central to a free algebra.
+--
+-- At the heart of constructing a free object is a forgetting that throws away the structural details of the very laws the free object defines.
+--
+-- /Adding a law to an algebra can be thought of as partitioning the carrier of the algebra into equivalence classes induced by that law, and regarding each class as one element./ ~ [The Boom Heirarchy](http://citeseerx.ist.psu.edu/viewdoc/download;jsessionid=601FB55680BBC2C1A14D136657E4A7ED?doi=10.1.1.49.3252&rep=rep1&type=pdf)
+--
+-- In functorology, the free functor is left adjunct to a forgetful functor. To quote in full [nLabs](https://ncatlab.org/nlab/show/free-forgetful+adjunction) explanation:
+--
+-- > adjunction : free functor ⊣ forgetful functor
+--
+-- elsewhere they then go on to say this about adjointness:
+--
+-- /Essentially everything that makes category theory nontrivial and interesting ... can be derived from the concept of adjoint functors./
+--
+-- Stepping to the side of category theory, adjunctiveness is yet another metaphor for this deep dual nature of programming. That is, for every way of considering a problem, you can "flip the switch" and think about it in an opposite way or context.
+--
+-- With respect to Free Algebra, the flipped switch is this:
+--
+-- __/To arrive at the Free Object (where the only thing that is left are the laws under consideration), you need to forget the very laws encapsulated and remember everything else./__
+--
+-- /this functor “forgets” the monoidal structure — once we are inside a plain set, we no longer distinguish the unit element or care about multiplication — it’s called a forgetful functor./ ~ https://bartoszmilewski.com/2015/07/21/free-monoids/
+--
+-- == A free ring is a recursive sequence of bags.
+--
+-- The main motivation of this library is a demonstration of coding paths to speed and safety.
+--
+-- If haskell allowed subcategory functors, we could exactly say that the free ring is 'Control.Monad.Free.Free' ('Data.Functor.Compose.Compose' 'Bag' 'Seq'), a fairly compact specification. As it stands, the definition associates 'FreeRing' with a forgetful functor representing a robust set of polymorphic fusion rules. There are a lot of things that are rings, and some of them need to go very fast and be very clean.
+--
+-- And as is becoming well known, the easiest way to ensure that laws are never violated is by making their transgression non-representable, and free algebra is a useful technique for that.
+module NumHask.FreeAlgebra
+  ( -- * a free algebra class
     FreeAlgebra (..),
 
-    -- * the initial objects
+    -- * initial objects
+    NoLaws,
     Tree (..),
     toTreeL,
     toTreeR,
@@ -73,12 +78,11 @@ module NumHask.Free
     freeExp,
 
     -- * single law free algebras
-    NoLaws,
     MagmaOnly,
     UnitalOnly,
-    TreeU,
+    TreeU (..),
     AssociativeOnly,
-    TreeA,
+    TreeA (..),
     CommutativeOnly,
     InvertibleOnly,
     IdempotentOnly,
@@ -87,9 +91,9 @@ module NumHask.Free
     -- * multi-law free algebras
     FreeMonoid (..),
     MultMonoid,
-    AddCommGroup,
     Bag (..),
     mapBag,
+    AddCommGroup,
     RingLaws,
     FreeRing (..),
 
@@ -103,8 +107,9 @@ where
 
 import qualified Data.Attoparsec.Text as A
 import qualified Data.Map as Map hiding (fromList)
-import qualified Data.Text as Text
 import qualified Data.Sequence as Seq
+import Data.Sequence ((<|), Seq (..), (|>))
+import qualified Data.Text as Text
 import GHC.Exts (IsList (..), coerce, toList)
 import qualified GHC.Show
 import NumHask.Algebra.Abstract.Group ()
@@ -133,23 +138,22 @@ class FreeAlgebra initial free a | free -> initial where
   -- | Pretty print the free object.
   printf :: free a -> Text
 
+-- | Starting from a particular initial structure, different sets of laws may lead to the same actual structure (or free object). Informal phantom type are included in most structures to help distinguish these cases and supply differeing instances.
+data NoLaws
+
 -- | A binary tree is a common initial structure when considering free algebras.
 --
 -- The initial object for a Magma algebra is typically a tree-like structure representing a computation or expression; a series of binary operations, such as:
 --
--- (1 ⊕ 4) ⊕ ((7 ⊕ 12) ⊕ 0)
+-- > (1 ⊕ 4) ⊕ ((7 ⊕ 12) ⊕ 0)
 --
 -- >>> let m1 = Branch (Branch (Leaf (Example 1)) (Leaf (Example 4))) (Branch (Branch (Leaf (Example 7)) (Leaf (Example 12))) (Leaf (Example 0))) :: Tree MagmaOnly Example
 -- >>> putStrLn $ printf m1
 -- ((1⊕4)⊕((7⊕12)⊕0))
---
 data Tree laws a
   = Leaf a
   | Branch (Tree laws a) (Tree laws a)
   deriving (Eq, Ord, Show, Functor)
-
--- | Starting from a particular initial structure, different sets of algerbraic laws may lead to the same actual structure. A phantom type is included in Tree and in other structures to help distinguish these cases.
-data NoLaws
 
 -- | Convenience function to construct a Tree from a list with left bracket groupings.
 --
@@ -195,7 +199,7 @@ instance Show Example where
 --
 -- > a ⊕ b is closed
 --
--- Given an initial binary Tree structure ie
+-- Given an initial binary Tree structure:
 --
 -- > data Tree a = Leaf a | Branch (Tree a) (Tree a)
 --
@@ -224,30 +228,30 @@ instance
   printf (Leaf a) = show a
   printf (Branch a b) = mconcat ["(", printf a, "⊕", printf b, ")"]
 
--- | Free Unital
+-- |
 --
 -- > unit ⊕ a = a
 -- > a ⊕ unit = a
 data UnitalOnly
 
--- | The introduction of unital laws to the algebra changes what the free structure is. From the point of view of algebra as an instruction kit for constructing an object, the unital laws suggest that, where an element is combined with the unit element, this operation should be ignored or forgotten.
+-- | The introduction of unital laws to the algebra changes what the free structure is, compared to the 'MagmaOnly' case. From this library's point of view, that an algebra is an instruction kit for constructing an object, the unital laws are an instruction to substitute "a" for whenever "unit ⊕ a" occurs. Where an element is combined with the unit element, this operation should be erased and forgotten.
 --
--- Starting with two different initial objects, ((0 ⊕ 4) ⊕ 0) ⊕ 12 and 4 ⊕ 12 (say) are equivalent. The initial structure (a Tree) can be divided into equivalence classes where trees are isomorphic (the same).
+-- For example, from the point of view of the free algebra, ((0 ⊕ 4) ⊕ 0) ⊕ 12 and 4 ⊕ 12 (say) are the same. The initial structure can be divided into equivalence classes where trees are isomorphic (the same).
 --
--- Unlike the MagmaOnly case, the forgetting of unit operations means that an empty tree can result from an initially non-empty initial structure. The easiest way to do this is simply to graft an Empty tag to a Tree.
+-- In contrast to the MagmaOnly case, the forgetting of unit operations means that an empty tree can result from an initially non-empty initial structure. The easiest way to represent this potential free object is simply to graft an EmptyTree tag to a Tree with a sum type.
+--
+-- An EmptyTree represents a collapse of an initial structure down to nothing, as a result of applying the unital laws eg
+--
+-- >>> let init = toTreeL $ Example <$> [0,0,0] :: Tree NoLaws Example
+-- >>> forget init :: TreeU UnitalOnly Example
+-- EmptyTree
+--
+-- __/By forgetting instances of the unital laws in the original expression, the unital laws cannot be violated in the free object because they no longer exist./__
 --
 -- >>> let init = toTreeL $ Example <$> [0,1,4,0,7,12,0] :: Tree NoLaws Example
 -- >>> putStrLn $ printf $ (forget init :: TreeU UnitalOnly Example)
 -- (((1⊕4)⊕7)⊕12)
---
--- In other words, a free algebra makes violation of the algerbraic laws non-representable in the free structure.
---
--- An Empty represents a collapse of an initial structure down to nothing, as a result of applying the unital laws eg
---
--- >>> let init = toTreeL $ Example <$> [0,0,0] :: Tree NoLaws Example
--- >>> forget init :: TreeU UnitalOnly Example
--- Empty
-data TreeU laws a = Empty | NonEmpty (Tree MagmaOnly a)
+data TreeU laws a = EmptyTree | NonEmptyTree (Tree MagmaOnly a)
   deriving (Eq, Ord, Show, Functor)
 
 instance
@@ -257,30 +261,30 @@ instance
   forget (Leaf a) = lift a
   forget (Branch a b) = opU (forget a) (forget b)
     where
-      opU Empty t = t
-      opU t Empty = t
-      opU (NonEmpty t) (NonEmpty t') = NonEmpty (Branch t t')
+      opU EmptyTree t = t
+      opU t EmptyTree = t
+      opU (NonEmptyTree t) (NonEmptyTree t') = NonEmptyTree (Branch t t')
 
-  lift a = bool (NonEmpty (Leaf a)) Empty (a == unit)
+  lift a = bool (NonEmptyTree (Leaf a)) EmptyTree (a == unit)
 
-  algebra Empty = unit
-  algebra (NonEmpty t) = algebra t
+  algebra EmptyTree = unit
+  algebra (NonEmptyTree t) = algebra t
 
-  printf Empty = show @a (unit @a)
-  printf (NonEmpty t) = printf t
+  printf EmptyTree = show @a (unit @a)
+  printf (NonEmptyTree t) = printf t
 
--- | Free Associative
+-- |
 --
 -- > (a ⊕ b) ⊕ c = a ⊕ (b ⊕ c)
 data AssociativeOnly
 
 -- | Introduction of an associative law induces an equivalence class where, for example, (1 ⊕ 2) ⊕ 3 and 1 ⊕ (2 ⊕ 3) should be represented in the same way.
 --
--- The free object constructor thus needs to forget about the tree shape (the brackets).
+-- 'forget', the free object constructor, thus needs to forget about the tree shape (the brackets or parentheses of the original expression).
 --
--- As an algebra proceeds one element at a time, branches (or "links") still exist from one element to the next. The free object is still a tree structure, but it is the same tree shape.
+-- As an algebra consumes an expression one element at a time, branches (or "links") still exist from one element to the next. The free object is still a tree structure, but it is the same tree shape.
 --
--- Forcing one side of the branch to be a value provides a tree structure that branch to the other side. Choosing the left branch as the value is arbitrary.
+-- Forcing one side of the branch to be a value provides a tree structure that branches to the other side. The left branch as the value has been chosen in this representation but this is arbitrary.
 --
 -- >>> let exl = toTreeL $ Example <$> [1,4,7,12,0]
 -- >>> putStrLn $ printf (forget exl :: Tree MagmaOnly Example)
@@ -314,20 +318,26 @@ instance (Show a, Associative a) => FreeAlgebra (Tree NoLaws) (TreeA Associative
   printf (LeafA a) = show a
   printf (BranchA a b) = show a <> "⊕" <> printf b
 
--- | Free Commutative
+-- |
 --
 -- > a ⊕ b == b ⊕ a
 --
 -- but non-associative, so
+--
 -- > (a ⊕ b) ⊕ c == (b ⊕ a) ⊕ c
+--
+-- but
+--
 -- > (a ⊕ b) ⊕ c /= a ⊕ (b ⊕ c)
 --
--- Commutation requires a ⊕ b and b ⊕ a to be represented the same, and this induces a preordering: *some* form of (arbitrary) ordering is needed to consistently represent a ⊕ b and b ⊕ a as ~ab~ (say).
+-- Commutation requires a ⊕ b and b ⊕ a to be represented the same, and this induces a preordering: __/some/__ form of (arbitrary) ordering is needed to consistently and naturally represent a ⊕ b and b ⊕ a as "ab".
 --
 -- In structural terms, a commutative tree is a mobile; a tree that has lost it's left and rightedness. To implement this forgetting, the left element of BranchC is arbitrarily chosen as always being less than or equal to the right element.
 --
 -- c1: 3 ⊕ (2 ⊕ 1)
+--
 -- c2: 3 ⊕ (1 ⊕ 2)
+--
 -- c3: (1 ⊕ 2) ⊕ 3
 --
 -- >>> let c1 = forget $ Branch (Leaf (Example 3)) (Branch (Leaf (Example 2)) (Leaf (Example 1))) :: Tree CommutativeOnly Example
@@ -356,19 +366,24 @@ instance (Show a, Ord a, Commutative a) => FreeAlgebra (Tree NoLaws) (Tree Commu
   printf (Leaf a) = show a
   printf (Branch a b) = "(" <> printf a <> "⊕" <> printf b <> ")"
 
--- | Free Invertible
+-- | 
 --
 -- > inv a ⊕ (a ⊕ b) == b -- left cancellation
 -- > (a ⊕ b) ⊕ inv b == a -- right cancellation
 --
--- but inv a ⊕ a is not a thing yet without a unit to equal to.
+-- but
 --
--- The cancellation (or reversal) of a value and the value are both lost in forming the equivalence relationship. Editing and diffing are two obvious examples.
+-- > inv a ⊕ a == unit
+-- is not a thing yet without a unit to equal to.
+--
+-- The cancellation (or reversal or negation) of a value and the value are both lost in forming the equivalence relationship. Editing and diffing are two obvious examples.
 --
 -- The data structure for the equivalence class is unchanged, so Tree can be reused.
 --
 -- inv1: -1 ⊕ (1 ⊕ 5) == 5
+--
 -- inv2: (1 ⊕ 5) ⊕ -5 == 1
+--
 -- inv3: (1 ⊕ 5) ⊕ -1 == (1 ⊕ 5) ⊕ -1
 --
 -- >>> let inv1 = Branch (Leaf (Example (-1))) (Branch (Leaf (Example 1)) (Leaf (Example 5)))
@@ -401,13 +416,14 @@ instance (Show a, Eq a, Invertible a) => FreeAlgebra (Tree NoLaws) (Tree Inverti
   printf (Leaf a) = show a
   printf (Branch a b) = "(" <> printf a <> "⊕" <> printf b <> ")"
 
--- | Free Idempotent
+-- |
 --
 -- > a ⊕ a = a
 --
--- Repeated elements are forgotten in the equivalence class object.
+-- Immediately repeated elements are forgotten in the equivalence class object.
 --
 -- idem1: (5 ⊕ 5) ⊕ 1 == 5 ⊕ 1
+--
 -- idem2: (1 ⊕ 5) ⊕ (1 ⊕ 5) == (1 ⊕ 5)
 --
 -- but
@@ -415,7 +431,6 @@ instance (Show a, Eq a, Invertible a) => FreeAlgebra (Tree NoLaws) (Tree Inverti
 -- idem3: (1 ⊕ 5) ⊕ 5 == (1 ⊕ 5) ⊕ 5
 --
 -- because we don't yet have associativity.
---
 --
 -- >>> let idem1 = Branch (Branch (Leaf (Example 5)) (Leaf (Example 5))) (Leaf (Example 1))
 -- >>> let idem2 = Branch (Branch (Leaf (Example 1)) (Leaf (Example 5))) (Branch (Leaf (Example 1)) (Leaf  (Example 5)))
@@ -448,7 +463,7 @@ instance (Show a, Ord a) => FreeAlgebra (Tree NoLaws) (Tree IdempotentOnly) a wh
   printf (Branch a b) =
     "(" <> printf a <> " o " <> printf b <> ")"
 
--- | Free Absorbing
+-- |
 --
 -- > e ⊕ a == e  left absorbing
 -- > a ⊕ e == e  right absorbing
@@ -456,6 +471,7 @@ instance (Show a, Ord a) => FreeAlgebra (Tree NoLaws) (Tree IdempotentOnly) a wh
 -- The absorbed element is forgotten.
 --
 -- ab1: 0 * (2 * 5) == 0
+--
 -- ab2: (2 * 5) * 0 == 0
 --
 -- >>> let ab1 = Branch (Leaf (Example 0)) (Branch (Leaf (Example 2)) (Leaf (Example 5)))
@@ -497,34 +513,32 @@ instance
   printf (Leaf a) = show a
   printf (Branch a b) = "(" <> printf a <> "*" <> printf b <> ")"
 
-{- | The free monoid is a list.
-
-Applying these laws in the context of converting an expression tree into the simplest structure possible, involves:
-
- - forgetting whenever an element in the initial structure in the unit (one in the case of multiplication).
- - forgetting the brackets.
-
- Starting with the initial tree:
-
- > data Tree a = Leaf a | Branch (Tree a) (Tree a)
-
- We graft on a sum tag to represent an empty structure:
-
- > data Tree a = Empty | Leaf a | Branch (Tree a) (Tree a)
-
- To "forget" the left/right structure of the tree we force the left side of the branch to be a value rather than another tree branch, so that the whole tree always branches to the right:
-
- > data Tree a = Empty | Leaf a | Branch a (Tree a)
-
- Leaf a can be represented as Branch a Empty, so we can simplify this to:
-
- > data Tree a = Empty | Branch a (Tree a)
-
- And this is the classical Haskell cons list with different names:
-
- > data [] a = [] | a : [a]
-
--}
+-- | The free monoid is a list.
+--
+-- Applying unital and associativity laws in the context of converting an expression tree into a free monoid, the simplest structure possible, involves:
+--
+-- - forgetting whenever an element in the initial structure in the unit (one, say, in the case of multiplication).
+-- - forgetting the brackets.
+--
+-- So, starting with the initial tree:
+--
+-- > data Tree a = Leaf a | Branch (Tree a) (Tree a)
+--
+-- We graft on a sum tag to represent an empty structure:
+--
+-- > data Tree a = EmptyTree | Leaf a | Branch (Tree a) (Tree a)
+--
+-- To 'forget' the left/right structure of the tree we force the left side of the branch to be a value rather than another tree branch, so that the whole tree always branches to the right:
+--
+-- > data Tree a = EmptyTree | Leaf a | Branch a (Tree a)
+--
+-- Leaf a can be represented as Branch a EmptyTree, so we can simplify this to:
+--
+-- > data Tree a = EmptyTree | Branch a (Tree a)
+--
+-- And this is the classical Haskell cons list with different names:
+--
+-- > data [] a = [] | a : [a]
 newtype FreeMonoid laws a = FreeMonoid {leaves :: [a]} deriving (Eq, Ord, Foldable, Show)
 
 -- | Multiplicative monoid laws
@@ -534,15 +548,15 @@ newtype FreeMonoid laws a = FreeMonoid {leaves :: [a]} deriving (Eq, Ord, Foldab
 -- > a * one = a
 -- > (a * b) * c = a * (b * c)
 --
--- >>> one :: FreeMonoid MultMonoid Example
+-- >>> one :: FreeMonoid MultMonoid Int
 -- FreeMonoid {leaves = []}
 --
 --  ex1: (1 * 2) * (4 * 5) * 1
 --
 -- >>> let ex1 = Branch (Branch (Branch (Leaf 1) (Leaf 2)) (Branch (Leaf 4) (Leaf 5))) (Leaf 1)
 --
--- >>> printf (forget ex1 :: FreeMonoid MultMonoid Int)
--- "(2*4*5)"
+-- >>> putStrLn $ printf (forget ex1 :: FreeMonoid MultMonoid Int)
+-- (2*4*5)
 --
 -- >>> algebra (forget ex1 :: FreeMonoid MultMonoid Int)
 -- 40
@@ -570,16 +584,13 @@ instance (Show a, Eq a, Multiplicative a) => FreeAlgebra (Tree NoLaws) (FreeMono
   printf (FreeMonoid []) = show @a one
   printf (FreeMonoid ls) = calate "*" (show <$> ls)
 
-
-{- | The Free Commutative Monoid is a Bag.
-
-In addition to the forget function for a monoid, forgetting the addition of zero and brackets, a commutative monad introduces commutation as a new law.
-
-Commutation means representing a+b and b+a as the same ~ab~ say. To do this, the representation has to forget the ordering of expressions. A list that has lost it's order is sometimes referred to as a bag. An efficient representation of a bag is a (key,value) pair where the key is elements in the initial expression and value is the number of times the element has occurred.
-
-In a paradox typical of adjoint functors, the forgetting of the ordering of the initial structure induces a requirement that the carrier type be ordered.
-
--}
+-- | The Free commutative monoid is a Bag.
+--
+-- In addition to the forgetting needed for the free monoid, forgetting additions of zero and forgetting brackets, a commutative law means forgetting the order of the original expression structure.
+--
+-- A list that has lost it's order is sometimes referred to as a bag. An efficient representation of a bag is a (key,value) pair where the keys are elements in the initial expression and values are the number of times the element has occurred.
+--
+-- In the usual surface-paradox typical of adjointness, the forgetting of the ordering of the initial structure induces a requirement that the carrier type be ordered.
 newtype Bag laws a = Bag {unbag :: Map.Map a Int} deriving (Eq, Ord, Show)
 
 -- | This is a functor from Ord -> Ord but, sadly, not a functor from Hask -> Hask
@@ -608,35 +619,33 @@ instance (Ord a, Subtractive a) => IsList (Bag AddCommGroup a) where
       $ Map.fromListWith (+)
       $ (\e -> bool (e, 1) (negate e, -1) (e < zero)) <$> l
 
-{- | Additive Commutative Group Laws
-
-> a + b is closed
-> zero + a = a
-> a + zero = a
-> (a + b) + c = a + (b + c)
-> a + b == b + a
-> a + negate a = zero
-
-Adding invertibility to the list of laws for a commutative monoid gets us to the definition of a Commutative (or Abelian) Group.
-
-Invertible (in combination with commutation) means forgetting a value when the inversion of the value is contained somwhere within the expression. For example, arnmed with a definition of what a negative number is, integer addition such as:
-
-> 1+2+3+-1+-4+2
-
-Can be represented as a bag of 2 2's, one 3 and minus one 4's.
-
->>> let exbag = fromList [1,2,3,-1,-4,-2] :: Bag AddCommGroup Int
->>> exbag
-Bag {unbag = fromList [(3,1),(4,-1)]}
-
->>> toList exbag
-[3,-4]
-
->>> exAdd = toTreeL [0,1,2,3,0,-1,-4,-2,0]
->>> putStrLn $ printf (forget exAdd :: Bag AddCommGroup Int)
-(3+-4)
-
--}
+-- | Additive Commutative Group Laws
+--
+-- > a + b is closed
+-- > zero + a = a
+-- > a + zero = a
+-- > (a + b) + c = a + (b + c)
+-- > a + b == b + a
+-- > a + negate a = zero
+--
+-- Adding invertibility to the list of laws for a commutative monoid gets us to the definition of a Commutative (or Abelian) Group.
+--
+-- Invertible (in combination with commutation) means forgetting a value when the inversion of the value is contained somewhere within the expression. For example, armed with a definition of what a negative number is, integer addition such as:
+--
+-- > 1+2+3+-1+-4+2
+--
+-- Can be represented as a bag of 2 2's, one 3 and minus one 4's.
+--
+-- >>> let exbag = fromList [1,2,3,-1,-4,-2] :: Bag AddCommGroup Int
+-- >>> exbag
+-- Bag {unbag = fromList [(3,1),(4,-1)]}
+--
+-- >>> toList exbag
+-- [3,-4]
+--
+-- >>> exAdd = toTreeL [0,1,2,3,0,-1,-4,-2,0]
+-- >>> putStrLn $ printf (forget exAdd :: Bag AddCommGroup Int)
+-- (3+-4)
 data AddCommGroup
 
 instance (Ord a) => Additive (Bag AddCommGroup a) where
@@ -674,36 +683,25 @@ instance (Show a, Eq a, Ord a, Subtractive a) => FreeAlgebra (Tree NoLaws) (Bag 
       (show @a zero)
       (b == zero)
 
-{- | Ring Laws
-
-Addition
-> a + b is closed
-> zero + a = a
-> a + zero = a
-> (a + b) + c = a + (b + c)
-> a + b == b + a
-> a + negate a = zero
-
-Multiplication
-> a * b is closed
-> one * a = a
-> a * one = a
-> (a * b) * c = a * (b * c)
-
-Absorption
-> a * zero = zero
-> zero * a = zero
-
-Distributive
-> a * (b + c) = (a * b) + (a * c)
-> (b + c) * a = (b * a) + (c * a)
-
--}
+-- | Ring Laws
+--
+-- > a + b is closed
+-- > zero + a = a
+-- > a + zero = a
+-- > (a + b) + c = a + (b + c)
+-- > a + b == b + a
+-- > a + negate a = zero
+-- > a * b is closed
+-- > one * a = a
+-- > a * one = a
+-- > (a * b) * c = a * (b * c)
+-- > a * zero = zero
+-- > zero * a = zero
+-- > a * (b + c) = (a * b) + (a * c)
+-- > (b + c) * a = (b * a) + (c * a)
 data RingLaws
 
-{- | Where an algebra involves two (or more) operators, the initial structure (the expression) is arrived at by grafting new types of branches using sum types.
-
--}
+-- | Where an algebra involves two (or more) operators, the initial structure (the expression) is arrived at by grafting new types of branches using sum types.
 data Exp a
   = Value a
   | Add (Exp a) (Exp a)
@@ -723,47 +721,41 @@ instance (Show a, Eq a, Ring a, Magma a) => FreeAlgebra Exp Exp a where
   printf (Mult a b) = "(" <> printf a <> "*" <> printf b <> ")"
   printf (Add a b) = "(" <> printf a <> "+" <> printf b <> ")"
 
-{- | The Free Ring is a recursive sequence of bags.
-
-Given multiplication is monoidal (with the free object a list) and addition is a commutative group (with the free object a bag), it seems intuitively the case that the free object for a ring is a recursive list of bags. It is recursive because the ordering of +'s and *'s does not reduce, so that the tree-like nature of the expression is not forgotten.
-
-Abstractly, the choice of what goes in what should be an arbitrary one; the free object could also be a (recursive) bag of lists. The addition collection structure feels like it should be within the multiplication structure, however, because of the distribution law equivalence that need to be honoured in the representation:
-
-> a ⋅ (b + c) = (a · b) + (a · c)
-> (b + c) · a = (b · a) + (c · a)
-
-It is likely, in most endevours, that multiplication is more expensive than addition, and the left hand side of these equations have less multiplications.
-
-The free ring is the same general shape as the free monad in the [free](https://hackage.haskell.org/package/free-5.1.4/docs/Control-Monad-Free.html) library
-
-> data Free f a = Pure a | Free (f (Free f a))
-
-which in turn is almost the same shape as Fix eg
-
-> newtype Fix f = Fix (f (Fix f))
-
-If Bag could form a Functor instance, then the Free Ring could be expressed as:
-
-> data FreeRing a = Free (Compose Bag Seq) a
-
-In a similar vein, a Free Field would be a recursive bag of bags, or
-
-> data FreeField a = Free (Compose Bag Bag) a
-
-which is a very clean result.
-
--}
+-- | The free ring is a recursive sequence of bags.
+--
+-- Given multiplication is monoidal (with the free object a list) and addition is a commutative group (with the free object a bag), it seems intuitively the case that the free object for a ring is a recursive list of bags. It is recursive because the ordering of +'s and *'s does not reduce, so that the tree-like nature of the expression is not forgotten.
+--
+-- Abstractly, the choice of what goes in what should be an arbitrary one; the free object could also be a (recursive) bag of lists. The addition collection structure feels like it should be within the multiplication structure, however, because of the distribution law equivalence that need to be honoured in the representation:
+--
+-- > a ⋅ (b + c) = (a · b) + (a · c)
+-- > (b + c) · a = (b · a) + (c · a)
+--
+-- It is likely, in most endeavours, that multiplication is more expensive than addition, and the left hand side of these equations have less multiplications.
+--
+-- Because the distribution laws are substitutions to both the left and the right, use of 'Seq' is indicated instead of a list (which is isomorphic to a list and thus allowed as an alternative).
+--
+-- The free ring is the same general shape as the free monad in the [free](https://hackage.haskell.org/package/free-5.1.4/docs/Control-Monad-Free.html) library
+--
+-- > data Free f a = Pure a | Free (f (Free f a))
+--
+-- which in turn is almost the same shape as Fix eg
+--
+-- > newtype Fix f = Fix (f (Fix f))
+--
+-- If Bag could form a Functor instance, then the Free Ring could be expressed as:
+--
+-- > data FreeRing a = 'Free' ('Compose' 'Bag' 'Seq') a
+--
+-- which is a very clean result.
 data FreeRing laws a
   = FreeV a
-  | FreeR [Bag AddCommGroup (FreeRing laws a)]
+  | FreeR (Seq (Bag AddCommGroup (FreeRing laws a)))
   deriving (Eq, Ord, Show)
 
-data FreeRing' laws a
-  = FreeV' a
-  | FreeR' (Seq (Bag AddCommGroup (FreeRing laws a)))
-  deriving (Eq, Ord, Show)
-
--- | Parse an Exp, convert to a free structure and print.
+-- | Parse an Exp, forget to the 'FreeRing' structure and print.
+--
+-- >>> let t1 = "(4*(1+3)+(3+1)+6*(4+5*(11+6)*(3+2)))+(7+3+11*2)"
+-- "(1+3+3+7+(4*(1+3))+(6*(4+(5*(6+11)*(2+3))))+(11*2))"
 freeExp :: Text -> Text
 freeExp t = printf (forget (parseExp t) :: FreeRing RingLaws Int)
 
@@ -777,7 +769,7 @@ freeExp t = printf (forget (parseExp t) :: FreeRing RingLaws Int)
 -- plain (with multiplicative precedence)
 --
 -- >>> forget $ parseExp "1+2*3" :: FreeRing RingLaws Int
--- FreeR [Bag {unbag = fromList [(FreeV 1,1),(FreeR [Bag {unbag = fromList [(FreeV 2,1)]},Bag {unbag = fromList [(FreeV 3,1)]}],1)]}]
+-- FreeR (fromList [Bag {unbag = fromList [(FreeV 1,1),(FreeR (fromList [Bag {unbag = fromList [(FreeV 2,1)]},Bag {unbag = fromList [(FreeV 3,1)]}]),1)]}])
 --
 -- >>> freeExp "1+2*3"
 -- "(1+(2*3))"
@@ -829,24 +821,24 @@ freeExp t = printf (forget (parseExp t) :: FreeRing RingLaws Int)
 --
 -- mixed (left then right checks)
 --
--- > freeExp "2*(3+4)*2+5*2+2*6*2"
+-- >>> freeExp "2*(3+4)*2+5*2+2*6*2"
 -- "((5+(2*(3+4))+(2*6))*2)"
 --
--- TODO: "(2*(3+4+6)*2+5*2)" is a valid alternative?
+-- Note that "(2*(3+4+6)*2+5*2)" is a valid alternative to what the current 'FreeRing' 'forget' function comes up with.
 --
--- TODO: optional extras:
+-- == TODO: optional extras:
 --
--- If +one is faster than +a
+-- - If +one is faster than +a
 --
 -- > (a . b) + a ==> a . (b + one)
 --
--- If a is scalar ...
+-- - If a is scalar ...
 --
--- upcasing a bag
+-- lifting an (additive bag) to a multiplication sequence
 --
 -- > 3+3+3+3 ==> 3*4
 --
--- exp
+-- - introducing exponents
 --
 -- > 3*3*3*3 ==> 3^4
 data InformalTests
@@ -861,94 +853,88 @@ bagV a
 -- | Single bag a FreeRing
 bagR :: (Ord a) => FreeRing RingLaws a -> Bag AddCommGroup (FreeRing RingLaws a)
 bagR a
-  | a == FreeR [] = zero
+  | a == FreeR Empty = zero
   | otherwise = Bag $ Map.singleton a 1
 
 instance (Eq a, Ord a, Subtractive a, Multiplicative a) => Multiplicative (FreeRing RingLaws a) where
   one = FreeV one
 
   -- absorption law
-  (*) _ (FreeR []) = FreeR []
-  (*) (FreeR []) _ = FreeR []
+  (*) _ (FreeR Empty) = FreeR Empty
+  (*) (FreeR Empty) _ = FreeR Empty
   -- multiplicative unital
   (*) (FreeV vl) (FreeV vr)
     | vl == one = FreeV vr
     | vr == one = FreeV vl
-    | otherwise = FreeR [bagV vl, bagV vr]
+    | otherwise = FreeR (bagV vl <| bagV vr <| Empty)
   -- multiplicative unital
   (*) (FreeV v) (FreeR bs) =
-    FreeR $ bool [bagV v] [] (v == one) <> bs
+    FreeR $ bool (bagV v <|) id (v == one) $ bs
   (*) (FreeR bs) (FreeV v) =
-    FreeR $ bs <> bool [bagV v] [] (v == one)
+    FreeR $ bool (|> bagV v) id (v == one) $ bs
   (*) (FreeR as) (FreeR bs) = FreeR $ as <> bs
 
 instance forall (a :: Type). (Ord a, Ring a) => Additive (FreeRing RingLaws a) where
-  zero = FreeR []
+  zero = FreeR Empty
 
   -- additive unital guards
-  (+) (FreeR []) a = a
-  (+) a (FreeR []) = a
+  (+) (FreeR Empty) a = a
+  (+) a (FreeR Empty) = a
   -- invertible check
   (+) (FreeV vl) (FreeV vr) =
     bool
-      (FreeR $ (: []) $ bagV vl + bagV vr)
-      (FreeR [])
+      (FreeR $ Seq.singleton $ bagV vl + bagV vr)
+      (FreeR Empty)
       (vl == negate vr)
   -- add another additive element to a (single-element list) bag
-  (+) (FreeV v) (FreeR [b]) = FreeR $ (: []) $ bagV v + b
-  (+) (FreeR [b]) (FreeV v) = FreeR $ (: []) $ bagV v + b
+  (+) (FreeV v) (FreeR (b :<| Empty)) = FreeR $ Seq.singleton $ bagV v + b
+  (+) (FreeR (b :<| Empty)) (FreeV v) = FreeR $ Seq.singleton $ bagV v + b
   -- multiplication expression being added to so
   -- create a new addition branch
   (+) (FreeV v) (FreeR bs) =
-    FreeR $ (: []) $
+    FreeR $ Seq.singleton $
       bagV v + bagR (FreeR bs)
   (+) (FreeR bs) (FreeV v) =
-    FreeR $ (: []) $
+    FreeR $ Seq.singleton $
       bagV v + bagR (FreeR bs)
-  (+) (FreeR [a]) (FreeR [b]) =
-    FreeR $ (: []) $ a + b
-  (+) as (FreeR [b]) =
-    FreeR $ (: []) $ bagR as + b
-  (+) (FreeR [a]) bs =
-    FreeR $ (: []) $ bagR bs + a
+  (+) (FreeR (a :<| Empty)) (FreeR (b :<| Empty)) =
+    FreeR $ Seq.singleton $ a + b
+  (+) as (FreeR (b :<| Empty)) =
+    FreeR $ Seq.singleton $ bagR as + b
+  (+) (FreeR (a :<| Empty)) bs =
+    FreeR $ Seq.singleton $ bagR bs + a
   -- distributive
   -- > (a · as') + (a · bs') ==> a ⋅ (as' + bs')
   -- > (ras' . ra) + (rbs' . ra) ==> (ras' + rbs') . ra
-  (+) f@(FreeR as@(a : as')) f'@(FreeR bs@(b : bs')) =
-    bool
-      ( bool
-          (FreeR $ (: []) $ bagR f + bagR f')
-          ( (FreeR (reverse ras') + FreeR (reverse rbs'))
-              * FreeR [ra]
-          )
-          (ra == rb)
-      )
-      (FreeR [a] * (FreeR as' + FreeR bs'))
-      (a == b)
-    where
-      (ra : ras') = reverse as
-      (rb : rbs') = reverse bs
+  -- left-biased checking
+  (+) f@(FreeR ((al :<| as') :|> ar)) f'@(FreeR ((bl :<| bs') :|> br))
+    | al == bl = FreeR (Seq.singleton al) * (FreeR (as' :|> ar) + FreeR (bs' :|> br))
+    | ar == br = (FreeR (al :<| as') + FreeR (bl :<| bs')) * FreeR (Seq.singleton ar)
+    | otherwise =
+      (FreeR $ Seq.singleton $ bagR f + bagR f')
+  (+) a b = FreeR $ Seq.singleton $ bagR a + bagR b
 
 instance (Show a, Ord a, Ring a) => Subtractive (FreeRing RingLaws a) where
   negate (FreeV a) = FreeV (negate a)
-  negate (FreeR []) = FreeR []
+  negate (FreeR Empty) = FreeR Empty
   -- no multiply, negate everything in the bag
-  negate (FreeR ((Bag m) : xs)) = FreeR $ [Bag $ Map.map negate m] <> xs
+  negate (FreeR ((Bag m) :<| xs)) =
+    FreeR $ (Seq.singleton $ (Bag $ Map.map negate m)) <> xs
 
 instance (Show a, Eq a, Ord a, Ring a) => FreeAlgebra Exp (FreeRing RingLaws) a where
   forget (Value a) = lift a
   forget (Add a b) = forget a + forget b
   forget (Mult a b) = forget a * forget b
 
-  lift a = bool (FreeV a) (FreeR []) (a == zero)
+  lift a = bool (FreeV a) (FreeR Empty) (a == zero)
 
   algebra (FreeV a) = a
-  algebra (FreeR []) = zero
+  algebra (FreeR Empty) = zero
   algebra (FreeR xs) = foldr (*) one (algebra . algebra <$> xs)
 
   printf (FreeV v) = show v
-  printf (FreeR []) = show @a (zero @a)
-  printf (FreeR bs) = calate "*" (printBagFreeR <$> bs)
+  printf (FreeR Empty) = show @a (zero @a)
+  printf (FreeR bs) = calate "*" (toList $ printBagFreeR <$> bs)
     where
       printBagFreeR b =
         bool
@@ -961,11 +947,11 @@ data BadExpParse = BadExpParse deriving (Show)
 
 instance Exception BadExpParse
 
--- | Parser adds implicit parens
+-- | Text parser for an expression. Parenthesis is imputed assuming multiplicative precedence and left-to-right default association.
 --
 -- > let t1 = "(4*(1+3)+(3+1)+6*(4+5*(11+6)*(3+2)))+(7+3+11*2)"
--- > printf . parseExp $ t1
--- "((((4*(1+3))+(3+1))+(6*(4+((5*(11+6))*(3+2)))))+((7+3)+(11*2)))"
+-- > putStrLn . printf . parseExp $ t1
+-- ((((4*(1+3))+(3+1))+(6*(4+((5*(11+6))*(3+2)))))+((7+3)+(11*2)))
 parseExp :: Text -> Exp Int
 parseExp t = either (throw BadExpParse) id $ A.parseOnly expr t
 
