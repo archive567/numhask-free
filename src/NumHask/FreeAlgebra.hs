@@ -14,56 +14,112 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 
--- |
+-- | __A 'Control.Monad.Free.Free' 'Num' is a 'Seq'uence of 'Bag's.__
 --
--- == What is a Free Algebra?
+-- One of the many things that sparks joy in Haskell is the density of expression that can be achieved. If it wasn't for a few quirks of the language, and if 'Ring' is substituted for 'Num', a free ring could be concretely defined as 'Control.Monad.Free.Free' ('Data.Functor.Compose.Compose' 'Bag' 'Seq') a.
+--
+-- As it stands, the library associates a free algebra with a forgetful functor representing what could be thought of as a robust set of polymorphic fusion rules. There are a lot of things that are number-like computations, and some of them need to go very fast and be very clean.
+--
+-- I had often heard about a free monoid and had always wondered what else, other than the iconic Haskell list, is a free thing. This library is a rough map of what has been a somewhat shambolic exploration of this notion. I hope you enjoy browsing the haddocks as much as I enjoyed crafting them. Before diving into the module proper,  there is a few landmarks worth noting:
+--
+-- - What, exactly, is a 'Num'?
+--
+-- - What is an algebra?
+--
+-- - The forgotten price that must be paid for an object to be free.
+--
+-- - The magic in category theory.
+--
+-- == What is a 'Num'?
+--
+-- /Can you truthfully say that you treasure something buried so deeply in a closet or drawer that you have forgotten its existence? If things had feelings, they would certainly not be happy. Free them from the prison to which you have relegated them. Help them leave that deserted isle to which you have exiled them./ ~ Marie Kondo
+--
+-- 'GHC.Num' is a dusty, old corner of our Haskell shelf-space. As is usually the case, the exact definition of what a 'Num' is is only ever a @λ> :i@ away.
+--
+-- >>> :i Num
+-- type Num :: * -> Constraint
+-- class Num a where
+--   (GHC.Num.+) :: a -> a -> a
+--   (GHC.Num.-) :: a -> a -> a
+--   (GHC.Num.*) :: a -> a -> a
+--   GHC.Num.negate :: a -> a
+--   GHC.Num.abs :: a -> a
+--   signum :: a -> a
+--   GHC.Num.fromInteger :: Integer -> a
+-- ...
+--
+-- So 'Num' is a Haskell class with an interface unchanged since it's specification in the [haskell98](https://www.haskell.org/onlinereport/standard-prelude.html) standard.
+--
+-- The other, obvious answer to the question is that a 'Num' is a number; it says so in the name, after all. But, by convention, a Haskell class is more than just the polymorphic type (the a) and the operators (the class interface). By convention, a Haskell class is also a set of laws that the class is expected to adhere to.
+--
+-- The commentary added since haskell98 mentions the mathematical concept of a ring but there are a few warts:
+--
+-- - 'zero' and 'one' are not included in the interface, but defined via 'fromInteger', a [special](https://ghc.gitlab.haskell.org/ghc/doc/users_guide/exts/rebindable_syntax.html) function baked into the Haskell language.
+--
+-- - abs and signum are not properties of a [ring](https://en.wikipedia.org/wiki/Ring_(mathematics\)), but of metric analytic branches of math.
+--
+-- The end result is that any notion of a free object applied to a 'Num' is difficult to imagine. If the interface is cleaned up, however, as in 'Ring' from the [numhask](https://hackage.haskell.org/package/numhask) library, with attention paid to each and every law, then resolution improves, and we are able to sharpen our tools.
+--
+-- A better definition of what our number systems are can lead to cleaner, faster coding patterns and design. In turn, this might eventually lead to ubiquitous usage of Haskell in numerical computing. As it stands right now, Haskell usage is restricted to only the most stubborn and dreamy of the numeric-analyst crew to which I claim membership of.
+--
+-- This article-module is, in part, a plea to release the Haskell numerical classes from their existing dusty drawers so we can begin to imagine some sort of future of numerical computation within the halls proper of Haskell. With apologies to Marie Kondo (and unsupported strikeout):
+--
+-- The __prelude__ (space) within which we __code__ (live) should be for the __language__ (person) we are becoming now, not for the __language__ (person) we were in the past.
+--
+-- and
+--
+-- Imagine what it would be like to have a __prelude__ (bookshelf) filled only with __functions__ (books) that you really love. Isn’t that image spellbinding? For someone who loves __functions__ (books), what greater happiness could there be?
+--
+-- == What is an algebra?
+--
+-- /Art is fire plus algebra./ ~ Jorge Luis Borges
+--
+-- or, less succinctly,
 --
 -- /An algebra is a collection of operations which combine values to produce other values. Algebra is a posh way of saying "construction kit". The type of values an algebra combines and produces is called the carrier of the algebra. The collection of operations and specification of their arities is called the signature of the algebra./ ~ [pigworker reddit comment](https://www.reddit.com/r/haskell/comments/36y9jc/haskell_as_an_mvc_framework/)
 --
--- A free algebra then, can be a set of instructions for creating a free object from some initial structure or expression. 'FreeAlgebra' can be thought of as busting up a computation into two parts:
+-- A free algebra then, is a set of instructions for creating a free object from some initial structure or expression. 'FreeAlgebra' can be thought of as a class for busting up a computation into two parts:
 --
 -- - 'forget': a function that transforms a structure into a Free Object representing an ideal given the (abstract) laws of the algebra being defined, and
 --
 -- - 'algebra': a (concrete) algebra from the Free Object to the carrier type (the type being produced).
 --
+-- == The price of a free object is forgetting.
 --
--- === The free object
+-- /Maybe if I forgot things once in a while, we'd all be a little bit happier./ ~ Jay Asher, Thirteen Reasons Why
+--
+-- A free object is [neither](https://en.wikipedia.org/wiki/Gratis_versus_libre) "free as in beer" nor "free as in speech". It is free as in absent the algebraic laws that refer to how the object is constructed. At the heart of what is the free object, the @free@ part of the @FreeAlgebra initial free@ type, is a forgetting that throws away the structural details of the very laws the free object defines.
 --
 -- /A free object over a set forgets everything about that set except some universal properties, specified by the word following free. For example, the free monoid over Integers forgets unique factorization, unique representation in every base, the GCD function, and everything else about the Integers except: they are a set of objects, there is an associative (binary) operation on Integers, and there is a "neutral" Integer; precisely the universal properties of monoids./ ~ <https://www.schoolofhaskell.com/user/bss/magma-tree>
 --
 -- /... informally, a free object over a set A can be thought of as being a "generic" algebraic structure over A: the only equations that hold between elements of the free object are those that follow from the defining axioms of the algebraic structure./ ~ <https://en.wikipedia.org/wiki/Free_object>
 --
--- Explanations that lists are free monoids are abundant, as is research and development of free monadic combinators. Beyond this, concrete examples of free objects are rare out in the wild.
+-- /Adding a law to an algebra can be thought of as partitioning the carrier of the algebra into equivalence classes induced by that law, and regarding each class as one element./ ~ [The Boom Hierarchy](http://citeseerx.ist.psu.edu/viewdoc/download;jsessionid=601FB55680BBC2C1A14D136657E4A7ED?doi=10.1.1.49.3252&rep=rep1&type=pdf)
 --
--- === Forgetting is central to a free algebra.
+-- As is becoming well known, the easiest way to ensure that laws are never violated is by making their transgression non-representable. 'FreeAlgebra' represents a  technique for achieving this necessary step in constructing a free object from an initial representation.
 --
--- At the heart of constructing a free object is a forgetting that throws away the structural details of the very laws the free object defines.
+-- == The magic in category theory
 --
--- /Adding a law to an algebra can be thought of as partitioning the carrier of the algebra into equivalence classes induced by that law, and regarding each class as one element./ ~ [The Boom Heirarchy](http://citeseerx.ist.psu.edu/viewdoc/download;jsessionid=601FB55680BBC2C1A14D136657E4A7ED?doi=10.1.1.49.3252&rep=rep1&type=pdf)
+-- /Essentially everything that makes category theory nontrivial and interesting ... can be derived from the concept of adjoint functors./ ~ nLabs
 --
--- In functorology, the free functor is left adjunct to a forgetful functor. To quote in full [nLabs](https://ncatlab.org/nlab/show/free-forgetful+adjunction) explanation:
+-- What makes the above statement so interesting is when you combine it with their definition of adjunction (the noun to the "adjoint" adverb):
 --
--- > adjunction : free functor ⊣ forgetful functor
+-- /adjunction : free functor ⊣ forgetful functor/ ~ [nLabs](https://ncatlab.org/nlab/show/free-forgetful+adjunction)
 --
--- elsewhere they then go on to say this about adjointness:
+-- That's it! That's as far as they are prepared to discuss things, cascading definitions notwithstanding.
 --
--- /Essentially everything that makes category theory nontrivial and interesting ... can be derived from the concept of adjoint functors./
+-- There's something very 17th century medicine about 21st century category theory. "An overabundance of the yellow humours can be fixed by an application of leeches" is how I hear much category theoretic prescription. We simply don't yet know enough about applied category theory for it to be distinguishable from magic.
 --
--- Stepping to the side of category theory, adjunctiveness is yet another metaphor for this deep dual nature of programming. That is, for every way of considering a problem, you can "flip the switch" and think about it in an opposite way or context.
+-- Which leaves room for amateurs such as myself to do some hack-and-slash exploring. I can take a leap and see adjunctiveness (or is it adjointanality?) as yet another metaphor for this deep dual nature of programming. That is, for every way of considering a problem, you can "flip the switch" and think about it in an opposite, orthogonal, adjacent or flippin' arrow perspective or context.
 --
--- With respect to Free Algebra, the flipped switch is this:
+-- With respect to a 'FreeAlgebra', the flipped switch is this:
 --
--- __/To arrive at the Free Object (where the only thing that is left are the laws under consideration), you need to forget the very laws encapsulated and remember everything else./__
+-- __To arrive at a Free Object (where the only thing that is left are the laws under consideration), you need to forget the very laws encapsulated in the free structure and remember everything else.__
 --
 -- /this functor “forgets” the monoidal structure — once we are inside a plain set, we no longer distinguish the unit element or care about multiplication — it’s called a forgetful functor./ ~ https://bartoszmilewski.com/2015/07/21/free-monoids/
 --
--- == A free ring is a recursive sequence of bags.
+-- Future breakthroughs will not be found in quantum theory, mired in the 20th century slide-rules of physics.  They will not be gained by applying bio-logic-al constructs to computers with convoluted neural nets and tautological machine learnings. They will certainly never occur within a context of computer science as linguistic endeavour. The future can be seen now, however opaquely and paradoxical, and will be shaped by the binary oppositions and sheer post-modernist confusions of category theory.
 --
--- The main motivation of this library is a demonstration of coding paths to speed and safety.
---
--- If haskell allowed subcategory functors, we could exactly say that the free ring is 'Control.Monad.Free.Free' ('Data.Functor.Compose.Compose' 'Bag' 'Seq'), a fairly compact specification. As it stands, the definition associates 'FreeRing' with a forgetful functor representing a robust set of polymorphic fusion rules. There are a lot of things that are rings, and some of them need to go very fast and be very clean.
---
--- And as is becoming well known, the easiest way to ensure that laws are never violated is by making their transgression non-representable, and free algebra is a useful technique for that.
 module NumHask.FreeAlgebra
   ( -- * a free algebra class
     FreeAlgebra (..),
@@ -98,7 +154,6 @@ module NumHask.FreeAlgebra
     FreeRing (..),
 
     -- * example helpers
-    (⊕),
     Example (..),
     InformalTests,
     calate,
@@ -112,7 +167,7 @@ import Data.Sequence ((<|), Seq (..), (|>))
 import qualified Data.Text as Text
 import GHC.Exts (IsList (..), coerce, toList)
 import qualified GHC.Show
-import NumHask.Algebra.Abstract.Group ()
+import NumHask.Algebra.Group ()
 import NumHask.Prelude hiding (lift, reduce, toList)
 
 -- $setup
@@ -138,7 +193,7 @@ class FreeAlgebra initial free a | free -> initial where
   -- | Pretty print the free object.
   printf :: free a -> Text
 
--- | Starting from a particular initial structure, different sets of laws may lead to the same actual structure (or free object). Informal phantom type are included in most structures to help distinguish these cases and supply differeing instances.
+-- | Starting from a particular initial structure, different sets of laws may lead to the same actual structure (or free object). Informal phantom type are included in most structures to help distinguish these cases and supply differing instances.
 data NoLaws
 
 -- | A binary tree is a common initial structure when considering free algebras.
@@ -173,15 +228,11 @@ toTreeR l =
 
 -- * Individual Magma Laws
 
--- | example magma
-(⊕) :: (Magma a) => a -> a -> a
-(⊕) = magma
-
 -- | example type
 newtype Example = Example Int deriving (Eq, Ord, Associative, Commutative, Idempotent)
 
 instance Magma Example where
-  magma (Example a) (Example b) = Example $ a + b
+  (Example a) ⊕ (Example b) = Example $ a + b
 
 instance Unital Example where
   unit = Example zero
@@ -742,9 +793,7 @@ instance (Show a, Eq a, Ring a, Magma a) => FreeAlgebra Exp Exp a where
 --
 -- > newtype Fix f = Fix (f (Fix f))
 --
--- If Bag could form a Functor instance, then the Free Ring could be expressed as:
---
--- > data FreeRing a = 'Free' ('Compose' 'Bag' 'Seq') a
+-- If Bag could form a Functor instance, then the Free Ring could be expressed as @'Control.Monad.Free.Free' ('Data.Functor.Compose.Compose' 'Bag' 'Seq') a@
 --
 -- which is a very clean result.
 data FreeRing laws a
@@ -752,7 +801,7 @@ data FreeRing laws a
   | FreeR (Seq (Bag AddCommGroup (FreeRing laws a)))
   deriving (Eq, Ord, Show)
 
--- | Parse an Exp, forget to the 'FreeRing' structure and print.
+-- | Parse an Exp, forget to the free object structure and print.
 --
 -- >>> let t1 = "(4*(1+3)+(3+1)+6*(4+5*(11+6)*(3+2)))+(7+3+11*2)"
 -- >>> putStrLn $ freeExp t1
@@ -795,7 +844,7 @@ freeExp t = printf (forget (parseExp t) :: FreeRing RingLaws Int)
 -- >>> freeExp "(2*6)*((4*5)*2)"
 -- "(2*6*4*5*2)"
 --
--- absorbative
+-- absorptive
 --
 -- >>> freeExp "0*1+3*(3+4)*0"
 -- "0"
@@ -825,7 +874,7 @@ freeExp t = printf (forget (parseExp t) :: FreeRing RingLaws Int)
 -- >>> freeExp "2*(3+4)*2+5*2+2*6*2"
 -- "((5+(2*(3+4))+(2*6))*2)"
 --
--- Note that "(2*(3+4+6)*2+5*2)" is a valid alternative to what the current 'FreeRing' 'forget' function comes up with.
+-- Note that @(2*(3+4+6)*2+5*2)@ is a valid alternative to what the current 'FreeRing' 'forget' function comes up with.
 --
 -- == TODO: optional extras:
 --
