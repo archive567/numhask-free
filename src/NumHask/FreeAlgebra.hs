@@ -157,6 +157,17 @@ module NumHask.FreeAlgebra
     Example (..),
     InformalTests,
     calate,
+    action,
+
+    -- * module tree
+    freeExpM,
+    parseExpM,
+    exprM,
+    termM,
+    factorM,
+    addM,
+    multM,
+    actionM,
   )
 where
 
@@ -165,17 +176,23 @@ import qualified Data.Map as Map hiding (fromList)
 import qualified Data.Sequence as Seq
 import Data.Sequence ((<|), Seq (..), (|>))
 import qualified Data.Text as Text
+import Data.Text (Text, pack)
 import GHC.Exts (IsList (..), coerce, toList)
-import qualified GHC.Show
 import NumHask.Algebra.Group ()
-import NumHask.Prelude hiding (lift, reduce, toList)
+import NumHask.Prelude hiding (reduce, toList, putStrLn)
+import Control.Exception
+import Data.List.NonEmpty (NonEmpty (..))
+import Data.Functor
+import Control.Applicative
 
 -- $setup
 --
 -- >>> :set -XOverloadedStrings
 -- >>> :set -XOverloadedLists
 -- >>> :set -XNoImplicitPrelude
--- >>> import NumHask.Prelude hiding (toList, reduce, pure)
+-- >>> import NumHask.Prelude hiding (toList, reduce, pure, putStrLn)
+-- >>> import Data.Text.IO (putStrLn)
+-- >>> import Data.List.NonEmpty (toList)
 
 -- | A free algebra is a construction kit of operations and axioms that combine to produce values of a type.
 class FreeAlgebra initial free a | free -> initial where
@@ -237,8 +254,21 @@ instance Magma Example where
 instance Unital Example where
   unit = Example zero
 
+instance Additive Example where
+   (+) = (⊕)
+   zero = unit
+
+instance Subtractive Example where
+   negate = inv
+
+instance Multiplicative Example where
+   (*) (Example a) (Example b) = Example (a * b)
+   one  = Example one
+
 instance Absorbing Example where
   absorb = Example zero
+
+instance Distributive Example
 
 instance Invertible Example where
   inv (Example a) = Example (negate a)
@@ -276,7 +306,7 @@ instance
   algebra (Leaf a) = a
   algebra (Branch a b) = algebra a ⊕ algebra b
 
-  printf (Leaf a) = show a
+  printf (Leaf a) = (pack . show) a
   printf (Branch a b) = mconcat ["(", printf a, "⊕", printf b, ")"]
 
 -- |
@@ -321,7 +351,7 @@ instance
   algebra EmptyTree = unit
   algebra (NonEmptyTree t) = algebra t
 
-  printf EmptyTree = show @a (unit @a)
+  printf EmptyTree = pack $ show @a (unit @a)
   printf (NonEmptyTree t) = printf t
 
 -- |
@@ -366,8 +396,8 @@ instance (Show a, Associative a) => FreeAlgebra (Tree NoLaws) (TreeA Associative
   algebra (LeafA a) = a
   algebra (BranchA a b) = a ⊕ algebra b
 
-  printf (LeafA a) = show a
-  printf (BranchA a b) = show a <> "⊕" <> printf b
+  printf (LeafA a) = (pack . show) a
+  printf (BranchA a b) = (pack . show) a <> "⊕" <> printf b
 
 -- |
 --
@@ -414,7 +444,7 @@ instance (Show a, Ord a, Commutative a) => FreeAlgebra (Tree NoLaws) (Tree Commu
   algebra (Leaf a) = a
   algebra (Branch a b) = algebra a ⊕ algebra b
 
-  printf (Leaf a) = show a
+  printf (Leaf a) = pack $ show a
   printf (Branch a b) = "(" <> printf a <> "⊕" <> printf b <> ")"
 
 -- |
@@ -464,7 +494,7 @@ instance (Show a, Eq a, Invertible a) => FreeAlgebra (Tree NoLaws) (Tree Inverti
   algebra (Leaf a) = a
   algebra (Branch a b) = algebra a ⊕ algebra b
 
-  printf (Leaf a) = show a
+  printf (Leaf a) = pack $ show a
   printf (Branch a b) = "(" <> printf a <> "⊕" <> printf b <> ")"
 
 -- |
@@ -510,7 +540,7 @@ instance (Show a, Ord a) => FreeAlgebra (Tree NoLaws) (Tree IdempotentOnly) a wh
   algebra (Leaf a) = a
   algebra (Branch a b) = algebra a `max` algebra b
 
-  printf (Leaf a) = show a
+  printf (Leaf a) = pack $ show a
   printf (Branch a b) =
     "(" <> printf a <> " o " <> printf b <> ")"
 
@@ -561,7 +591,7 @@ instance
   algebra (Leaf a) = a
   algebra (Branch a b) = algebra a ⊕ algebra b
 
-  printf (Leaf a) = show a
+  printf (Leaf a) = pack $ show a
   printf (Branch a b) = "(" <> printf a <> "*" <> printf b <> ")"
 
 -- | The free monoid is a list.
@@ -632,8 +662,8 @@ instance (Show a, Eq a, Multiplicative a) => FreeAlgebra (Tree NoLaws) (FreeMono
 
   algebra = foldr (*) one
 
-  printf (FreeMonoid []) = show @a one
-  printf (FreeMonoid ls) = calate "*" (show <$> ls)
+  printf (FreeMonoid []) = pack $ show @a one
+  printf (FreeMonoid ls) = calate "*" ((pack . show) <$> ls)
 
 -- | The Free commutative monoid is a Bag.
 --
@@ -691,9 +721,6 @@ instance (Ord a, Subtractive a) => IsList (Bag AddCommGroup a) where
 -- >>> exbag
 -- Bag {unbag = fromList [(3,1),(4,-1)]}
 --
--- >>> toList exbag
--- [3,-4]
---
 -- >>> exAdd = toTreeL [0,1,2,3,0,-1,-4,-2,0]
 -- >>> putStrLn $ printf (forget exAdd :: Bag AddCommGroup Int)
 -- (3+-4)
@@ -730,8 +757,8 @@ instance (Show a, Eq a, Ord a, Subtractive a) => FreeAlgebra (Tree NoLaws) (Bag 
 
   printf b =
     bool
-      (calate "+" (show <$> toList b))
-      (show @a zero)
+      (calate "+" ((pack . show) <$> toList b))
+      (pack $ show @a zero)
       (b == zero)
 
 -- | Ring Laws
@@ -768,7 +795,7 @@ instance (Show a, Eq a, Ring a, Magma a) => FreeAlgebra Exp Exp a where
   algebra (Add a b) = algebra a + algebra b
   algebra (Mult a b) = algebra a * algebra b
 
-  printf (Value a) = show a
+  printf (Value a) = pack $ show a
   printf (Mult a b) = "(" <> printf a <> "*" <> printf b <> ")"
   printf (Add a b) = "(" <> printf a <> "+" <> printf b <> ")"
 
@@ -982,14 +1009,14 @@ instance (Show a, Eq a, Ord a, Ring a) => FreeAlgebra Exp (FreeRing RingLaws) a 
   algebra (FreeR Empty) = zero
   algebra (FreeR xs) = foldr (*) one (algebra . algebra <$> xs)
 
-  printf (FreeV v) = show v
-  printf (FreeR Empty) = show @a (zero @a)
+  printf (FreeV v) = pack $ show v
+  printf (FreeR Empty) = pack $ show @a (zero @a)
   printf (FreeR bs) = calate "*" (toList $ printBagFreeR <$> bs)
     where
       printBagFreeR b =
         bool
           (calate "+" (printf <$> toList b))
-          (show @a zero)
+          (pack $ show @a zero)
           (b == zero)
 
 -- expression parsing helpers
@@ -1030,6 +1057,9 @@ add = (A.skipSpace *> A.char '+') $> Add <* A.skipSpace
 mult :: A.Parser (Exp a -> Exp a -> Exp a)
 mult = (A.skipSpace *> A.char '*') $> Mult <* A.skipSpace
 
+action :: A.Parser (Exp a -> Exp a -> Exp a)
+action = (A.skipSpace *> A.char '*') $> Mult <* A.skipSpace
+
 paren :: A.Parser a -> A.Parser a
 paren p = do
   _ <- A.skipSpace
@@ -1052,3 +1082,74 @@ calate :: Text -> [Text] -> Text
 calate _ [] = mempty
 calate _ [x] = x
 calate op xs = "(" <> Text.intercalate op xs <> ")"
+
+-- | Module expression
+data ExpM a
+  = ValueM a
+  | ActionM a (ExpM a)
+  | AddM (ExpM a) (ExpM a)
+  | MultM (ExpM a) (ExpM a)
+  deriving (Eq, Ord, Show, Functor)
+
+instance (Show a, Eq a, Ring a, Magma a) => FreeAlgebra ExpM ExpM a where
+  forget = id
+
+  lift = ValueM
+
+  algebra (ValueM a) = a
+  algebra (ActionM a  b) = a * algebra b
+  algebra (AddM a b) = algebra a + algebra b
+  algebra (MultM a b) = algebra a * algebra b
+
+  printf (ValueM a) = (pack . show) a
+  printf (ActionM a b) = "(" <> (pack . show) a <> ".*" <> printf b <> ")"
+  printf (MultM a b) = "(" <> printf a <> "*" <> printf b <> ")"
+  printf (AddM a b) = "(" <> printf a <> "+" <> printf b <> ")"
+
+instance Magma Int where
+  
+
+freeExpM :: Text -> Text
+freeExpM t = printf (forget (fmap Example (parseExpM t)) :: ExpM Example)
+
+-- expression parsing helpers
+data BadExpMParse = BadExpMParse deriving (Show)
+
+instance Exception BadExpMParse
+
+-- | Text parser for an expression. Parenthesis is imputed assuming multiplicative precedence and left-to-right default association.
+--
+-- > let t1 = "(4.*(1+3)+(3+1)+6*(4+5*(11+6).*(3+2)))+(7+3+11*2)"
+-- > putStrLn . printf . parseExp $ t1
+-- ((((4*(1+3))+(3+1))+(6*(4+((5*(11+6))*(3+2)))))+((7+3)+(11*2)))
+parseExpM :: Text -> ExpM Int
+parseExpM t = either (throw BadExpParse) id $ A.parseOnly exprM t
+
+-- | Exp parser
+-- > second printf $ A.parseOnly expr " ((1 + 3) + (4 + 5)) * (7 + 3 + 11 * 2)x"
+-- Right "(((1+3)+(4+5))*((7+3)+(11*2)))"
+exprM :: A.Parser (ExpM Int)
+exprM = branch termM addM
+
+factorM :: A.Parser (ExpM Int)
+factorM = valM <|> paren exprM
+
+termM :: A.Parser (ExpM Int)
+termM = branch factorM multM
+
+-- signed integer
+--
+-- > A.parse val " 5 "
+-- Done " " (Value 5)
+valM :: A.Parser (ExpM Int)
+valM = A.skipSpace *> (ValueM <$> A.signed A.decimal)
+
+addM :: A.Parser (ExpM a -> ExpM a -> ExpM a)
+addM = (A.skipSpace *> A.char '+') $> AddM <* A.skipSpace
+
+multM :: A.Parser (ExpM a -> ExpM a -> ExpM a)
+multM = (A.skipSpace *> A.char '*') $> MultM <* A.skipSpace
+
+actionM :: A.Parser (a -> ExpM a -> ExpM a)
+actionM = (A.skipSpace *> A.string ".*") $> ActionM <* A.skipSpace
+

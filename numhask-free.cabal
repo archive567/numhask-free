@@ -35,28 +35,9 @@ library
     base >=4.7 && <5,
     containers >= 0.6 && < 0.7,
     free >= 5.1 && < 5.2,
-    numhask >= 0.7 && < 0.8,
+    numhask >= 0.8.1 && < 0.9,
     text >= 1.2 && < 1.3,
   exposed-modules:
     NumHask.FreeAlgebra
   other-modules:
   default-language: Haskell2010
-
-test-suite test
-  type: exitcode-stdio-1.0
-  main-is: test.hs
-  hs-source-dirs:
-    test
-  build-depends:
-    base >=4.7 && <5,
-    doctest >= 0.16 && < 0.18,
-    numhask >= 0.7 && < 0.8,
-    numhask-free,
-  default-language: Haskell2010
-  default-extensions:
-  ghc-options:
-    -Wall
-    -Wcompat
-    -Wincomplete-record-updates
-    -Wincomplete-uni-patterns
-    -Wredundant-constraints
